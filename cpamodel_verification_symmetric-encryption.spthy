@@ -1,0 +1,62 @@
+theory CPA_symmetrickey_oracleuse_notoutkey
+begin
+
+heuristic: o "myoracle"
+
+builtins: symmetric-encryption
+
+rule Setup:
+[Fr(~key)] --[OnlyOnce(), Setup(~key)]-> [!Skey($A, ~key)]
+
+rule attackerkey:
+  [ !Skey($A, key) ] --[ Attacker($A) ]-> [ Out(key) ]
+  
+rule Attacker_make_message:
+ [ Fr(m_)] --[ ]-> [ Out(<$A,m_>),St_Attacker(m_) ]
+
+rule Encrypt_oracle:
+ [ In(<$A, m_>), Fr(~key) ,St_Attacker(m_)] --[Send($A, senc(<$A, m_>, ~key)), Secret(m_), Oracle($A), Sender($B), Role('Oracle'), Oracle_send_plain(m_) ]->  [ Out(senc(<$A, m_>,~key)), St_ReceiveKeyOracleplain(m_,~key) ]
+
+rule Sender_encrypt:
+[ Fr(~m), Fr(~key)  ]  --[Send($B, senc(<$B, ~m>, ~key)), Secret(~m), Sender($B), Oracle($A), Role('Sender'), Sender_send_plain(~m) ]-> [ Out(senc(<$B, ~m>,~key)), St_ReceiveKey(~m,~key) ]
+
+rule Attacker:
+let
+c_ = senc(m_ , key_)
+c  = senc(~m, key)
+message = sdec(c_, key)
+in
+ [St_ReceiveKeyOracleplain(m_,key_), In(senc(<$A, m_>,key_))  , St_ReceiveKey(~m,key), In(senc(<$B, ~m>,key)) ]
+ --[ Notequalvalue(<c_, c>), Secretmessage(message)]-> [  ]
+
+restriction OnlyOnce:
+"All #i #j. OnlyOnce() @ i & OnlyOnce() @ j==> #i = #j"
+
+restriction choiceplain:
+ "All x #i. Oracle_send_plain(x)@i
+   ==> (Ex y #j. Oracle_send_plain(y)@j & #j < #i) | (Ex y #j. Sender_send_plain(y)@j & #j < #i)"
+
+lemma value_notequal:
+ "All #i #j x. Notequalvalue(x)@i & Notequalvalue(x)@j ==> #i=#j"
+
+lemma secret_sender_message:
+  all-traces
+    "All n #i. Secret(n) @i & Role('Sender') @i ==> (not (Ex #j. K(n)@j)) | (Ex B #j. Attacker(B)@j & Sender(B)@i)"
+
+lemma m_secret:
+ "All m #i. Secretmessage(m)@i ==> not (Ex #j. K(m)@j)"
+
+end
+
+/*
+RESULT-???
+==============================================================================
+summary of summaries:
+analyzed: cpamodel_verification_symmetric-encryption.spthy
+  value_notequal (all-traces): verified (5 steps)
+  secret_sender_message (all-traces): verified (6 steps)
+  m_secret (all-traces): verified (34 steps)
+==============================================================================
+*/
+
+
